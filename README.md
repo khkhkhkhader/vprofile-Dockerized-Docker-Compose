@@ -1,5 +1,5 @@
 
-ckerized Application
+Dockerized Application
 
 A complete containerized deployment of the VProfile Java web application using Docker, multi-stage builds, Docker Compose, and versioned images stored in Docker Hub.
 
