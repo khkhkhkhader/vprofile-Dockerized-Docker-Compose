@@ -1,0 +1,18 @@
+# Exclude Git metadata.
+.git
+.gitignore
+
+# Exclude local environment files and secrets.
+.env
+secrets/
+
+# Exclude locally generated Maven artifacts.
+source/target/
+
+# Exclude logs and temporary files.
+*.log
+*.tmp
+
+# Exclude documentation that is not needed during image builds.
+README.md
+SECURITY.md

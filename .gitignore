@@ -1,0 +1,32 @@
+# Runtime credentials
+.env
+.env.*
+!.env.example
+secrets/
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Maven output
+source/target/
+target/
+
+# Logs
+*.log
+logs/
+
+# Docker runtime data
+data/
+volumes/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+
+# Operating-system files
+.DS_Store
+Thumbs.db
