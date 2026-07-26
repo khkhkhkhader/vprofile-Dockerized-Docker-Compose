@@ -91,6 +91,38 @@ pipeline {
         }
     }
 
+    stage('Trivy Image Scan') {
+            steps {
+                sh '''
+                    set -eux
+        
+                    IMAGE_TAG="${BUILD_NUMBER}"
+                    SCAN_FAILED=0
+        
+                    for IMAGE in \
+                        vprofile-db \
+                        vprofile-rabbitmq \
+                        vprofile-memcached \
+                        vprofile-app
+                    do
+                        echo "Scanning ${IMAGE}:${IMAGE_TAG}"
+        
+                        if ! trivy image \
+                            --scanners vuln \
+                            --ignore-unfixed \
+                            --severity HIGH,CRITICAL \
+                            --exit-code 1 \
+                            "${IMAGE}:${IMAGE_TAG}"
+                        then
+                            SCAN_FAILED=1
+                        fi
+                    done
+        
+                    exit "${SCAN_FAILED}"
+                '''
+    }
+}
+    
     post {
         success {
             echo 'Build, SonarQube Quality Gate, and Docker image build passed.'
