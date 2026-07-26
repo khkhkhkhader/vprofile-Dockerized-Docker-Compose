@@ -1,26 +1,41 @@
+// make sure to install aws cli v2 , trivy , docker , add jenkins user to deocker group and activate user membership , sonarqube
+// installed pluigins SonarQube Scanner , Credentials Binding,  GitHub Integration , Docker Pipeline 
+// maven in jenkins tools 3.9.16
 pipeline {
     agent any
 
     options {
-        // Jenkins لن يعمل Checkout تلقائيًا؛
-        // لأننا سننفذه داخل Stage واضحة.
         skipDefaultCheckout(true)
-
-        // يمنع تشغيل Buildين من نفس الـPipeline في نفس الوقت.
         disableConcurrentBuilds()
     }
 
     tools {
-        // لازم الاسم يطابق اسم Maven المسجل في:
-        // Manage Jenkins → Tools
         maven 'maven for project'
     }
 
+    environment {
+        AWS_REGION   = 'us-east-2'
+        ECR_REGISTRY = '578620461945.dkr.ecr.us-east-2.amazonaws.com'
+    }
+
     stages {
+
         stage('Checkout') {
             steps {
-                // يسحب الريبو والـBranch المحددة في إعدادات الـJob.
                 checkout scm
+            }
+        }
+
+        stage('Set Image Tag') {
+            steps {
+                script {
+                    env.IMAGE_TAG = sh(
+                        script: 'git rev-parse HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Full Git Commit SHA: ${env.IMAGE_TAG}"
+                }
             }
         }
 
@@ -30,15 +45,13 @@ pipeline {
                 sh 'mvn -version'
                 sh 'docker version'
                 sh 'trivy --version'
+                sh 'aws --version'
             }
         }
 
         stage('Build and SonarQube Analysis') {
             steps {
-                // pom.xml موجود داخل مجلد source.
                 dir('source') {
-                    // يأخذ SonarQube URL والـToken
-                    // من إعدادات Jenkins.
                     withSonarQubeEnv('sonarqube') {
                         sh '''
                             mvn -B -ntp clean verify \
@@ -64,28 +77,27 @@ pipeline {
                 sh '''
                     set -eux
 
-                    IMAGE_TAG="${BUILD_NUMBER}"
-
                     docker build \
                       -f docker/database/Dockerfile \
-                      -t "vprofile-db:${IMAGE_TAG}" \
+                      -t "${ECR_REGISTRY}/vprofile/db:${IMAGE_TAG}" \
                       .
 
                     docker build \
                       -f docker/rabbitmq/Dockerfile \
-                      -t "vprofile-rabbitmq:${IMAGE_TAG}" \
+                      -t "${ECR_REGISTRY}/vprofile/rabbitmq:${IMAGE_TAG}" \
                       .
 
                     docker build \
                       -f docker/memcached/Dockerfile \
-                      -t "vprofile-memcached:${IMAGE_TAG}" \
+                      -t "${ECR_REGISTRY}/vprofile/memcached:${IMAGE_TAG}" \
                       .
 
                     docker build \
                       -f docker/app/Dockerfile \
-                      -t "vprofile-app:${IMAGE_TAG}" \
+                      -t "${ECR_REGISTRY}/vprofile/app:${IMAGE_TAG}" \
                       .
 
+                    echo "Built Docker images:"
                     docker image ls | grep vprofile
                 '''
             }
@@ -96,22 +108,50 @@ pipeline {
                 sh '''
                     set -eux
 
-                    IMAGE_TAG="${BUILD_NUMBER}"
-
-                    for IMAGE in \
-                        vprofile-db \
-                        vprofile-rabbitmq \
-                        vprofile-memcached \
-                        vprofile-app
+                    for REPOSITORY in \
+                        vprofile/db \
+                        vprofile/rabbitmq \
+                        vprofile/memcached \
+                        vprofile/app
                     do
-                        echo "Scanning ${IMAGE}:${IMAGE_TAG}"
+                        IMAGE="${ECR_REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
+
+                        echo "Scanning ${IMAGE}"
 
                         trivy image \
                           --scanners vuln \
-                          --ignore-unfixed \
                           --severity HIGH,CRITICAL \
                           --exit-code 0 \
-                          "${IMAGE}:${IMAGE_TAG}"
+                          "${IMAGE}"
+                    done
+                '''
+            }
+        }
+
+        stage('Push Images to ECR') {
+            steps {
+                sh '''
+                    set -eu
+
+                    echo "Logging in to ECR: ${ECR_REGISTRY}"
+
+                    aws ecr get-login-password \
+                      --region "${AWS_REGION}" \
+                      | docker login \
+                          --username AWS \
+                          --password-stdin "${ECR_REGISTRY}"
+
+                    for REPOSITORY in \
+                        vprofile/app \
+                        vprofile/db \
+                        vprofile/memcached \
+                        vprofile/rabbitmq
+                    do
+                        IMAGE="${ECR_REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
+
+                        echo "Pushing ${IMAGE}"
+
+                        docker push "${IMAGE}"
                     done
                 '''
             }
@@ -120,7 +160,8 @@ pipeline {
 
     post {
         success {
-            echo 'Build, SonarQube Quality Gate, Docker build, and Trivy scan completed successfully.'
+            echo 'Pipeline completed successfully.'
+            echo "Images pushed using commit tag: ${env.IMAGE_TAG}"
         }
 
         failure {
