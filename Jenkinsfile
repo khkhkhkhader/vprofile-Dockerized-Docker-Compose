@@ -156,6 +156,33 @@ pipeline {
                 '''
             }
         }
+
+        stage('Cleanup Local Images') {
+            steps {
+                sh '''
+                    set -u
+
+                    for REPOSITORY in \
+                        vprofile/app \
+                        vprofile/db \
+                        vprofile/memcached \
+                        vprofile/rabbitmq
+                    do
+                        IMAGE="${ECR_REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
+
+                        echo "Removing local image: ${IMAGE}"
+
+                        docker image rm "${IMAGE}" || true
+                    done
+
+                    echo "Removing unused dangling image layers"
+
+                    docker image prune -f || true
+
+                    echo "Local Docker image cleanup completed"
+                '''
+            }
+        }
     }
 
     post {
