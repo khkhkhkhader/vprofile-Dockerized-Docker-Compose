@@ -58,6 +58,40 @@ pipeline {
         }
     }
 
+    stage('Docker Build') {
+    steps {
+        sh '''
+            set -eux
+
+            IMAGE_TAG="${BUILD_NUMBER}"
+
+            docker build \
+              -f docker/database/Dockerfile \
+              -t "vprofile-db:${IMAGE_TAG}" \
+              .
+
+            docker build \
+              -f docker/rabbitmq/Dockerfile \
+              -t "vprofile-rabbitmq:${IMAGE_TAG}" \
+              .
+
+            docker build \
+              -f docker/memcached/Dockerfile \
+              -t "vprofile-memcached:${IMAGE_TAG}" \
+              .
+
+            docker build \
+              -f docker/app/Dockerfile \
+              -t "vprofile-app:${IMAGE_TAG}" \
+              .
+
+            docker image ls \
+              --format 'table {{.Repository}}\\t{{.Tag}}\\t{{.Size}}' \
+              | grep -E 'REPOSITORY|vprofile-'
+        '''
+    }
+}
+
     post {
         success {
             echo 'Build and SonarQube Quality Gate passed.'
