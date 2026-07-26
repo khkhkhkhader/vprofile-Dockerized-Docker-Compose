@@ -85,20 +85,18 @@ pipeline {
                       .
 
                     docker image ls | grep vprofile
-                    
                 '''
             }
         }
-    }
 
-    stage('Trivy Image Scan') {
+        stage('Trivy Image Scan') {
             steps {
                 sh '''
                     set -eux
-        
+
                     IMAGE_TAG="${BUILD_NUMBER}"
                     SCAN_FAILED=0
-        
+
                     for IMAGE in \
                         vprofile-db \
                         vprofile-rabbitmq \
@@ -106,7 +104,7 @@ pipeline {
                         vprofile-app
                     do
                         echo "Scanning ${IMAGE}:${IMAGE_TAG}"
-        
+
                         if ! trivy image \
                             --scanners vuln \
                             --ignore-unfixed \
@@ -117,15 +115,16 @@ pipeline {
                             SCAN_FAILED=1
                         fi
                     done
-        
+
                     exit "${SCAN_FAILED}"
                 '''
+            }
+        }
     }
-}
-    
+
     post {
         success {
-            echo 'Build, SonarQube Quality Gate, and Docker image build passed.'
+            echo 'Build, SonarQube Quality Gate, Docker build, and Trivy scan passed.'
         }
 
         failure {
