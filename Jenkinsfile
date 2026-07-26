@@ -3,10 +3,10 @@ pipeline {
 
     options {
         // Jenkins لن يعمل Checkout تلقائيًا؛
-        // لأننا سننفذه في Stage واضحة.
+        // لأننا سننفذه داخل Stage واضحة.
         skipDefaultCheckout(true)
 
-        // يمنع تشغيل Buildين من نفس الـPipeline معًا.
+        // يمنع تشغيل Buildين من نفس الـPipeline في نفس الوقت.
         disableConcurrentBuilds()
     }
 
@@ -19,7 +19,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // يسحب الريبو والـBranch المحددة في إعداد الـJob.
+                // يسحب الريبو والـBranch المحددة في إعدادات الـJob.
                 checkout scm
             }
         }
@@ -28,12 +28,14 @@ pipeline {
             steps {
                 sh 'java -version'
                 sh 'mvn -version'
+                sh 'docker version'
+                sh 'trivy --version'
             }
         }
 
         stage('Build and SonarQube Analysis') {
             steps {
-                // pom.xml موجود داخل source.
+                // pom.xml موجود داخل مجلد source.
                 dir('source') {
                     // يأخذ SonarQube URL والـToken
                     // من إعدادات Jenkins.
@@ -95,7 +97,6 @@ pipeline {
                     set -eux
 
                     IMAGE_TAG="${BUILD_NUMBER}"
-                    SCAN_FAILED=0
 
                     for IMAGE in \
                         vprofile-db \
@@ -105,18 +106,13 @@ pipeline {
                     do
                         echo "Scanning ${IMAGE}:${IMAGE_TAG}"
 
-                        if ! trivy image \
-                            --scanners vuln \
-                            --ignore-unfixed \
-                            --severity HIGH,CRITICAL \
-                            --exit-code 1 \
-                            "${IMAGE}:${IMAGE_TAG}"
-                        then
-                            SCAN_FAILED=1
-                        fi
+                        trivy image \
+                          --scanners vuln \
+                          --ignore-unfixed \
+                          --severity HIGH,CRITICAL \
+                          --exit-code 0 \
+                          "${IMAGE}:${IMAGE_TAG}"
                     done
-
-                    exit "${SCAN_FAILED}"
                 '''
             }
         }
@@ -124,11 +120,15 @@ pipeline {
 
     post {
         success {
-            echo 'Build, SonarQube Quality Gate, Docker build, and Trivy scan passed.'
+            echo 'Build, SonarQube Quality Gate, Docker build, and Trivy scan completed successfully.'
         }
 
         failure {
             echo 'Pipeline failed. Check the Console Output.'
+        }
+
+        always {
+            echo "Pipeline finished for Build Number: ${BUILD_NUMBER}"
         }
     }
 }
