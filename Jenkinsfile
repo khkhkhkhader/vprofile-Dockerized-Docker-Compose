@@ -84,9 +84,8 @@ pipeline {
                       -t "vprofile-app:${IMAGE_TAG}" \
                       .
 
-                    docker image ls \
-                      --format 'table {{.Repository}}\\t{{.Tag}}\\t{{.Size}}' \
-                      | grep -E 'REPOSITORY|vprofile-'
+                    docker image ls | grep vprofile
+                    
                 '''
             }
         }
