@@ -1,6 +1,6 @@
 // this pipline will run on aws ec2 with role and policy to access the ecr
 // make sure to install aws cli v2 , trivy , docker , add jenkins user to deocker group and activate user membership , sonarqube
-// installed pluigins SonarQube Scanner , Credentials Binding,  GitHub Integration , Docker Pipeline 
+// installed pluigins SonarQube Scanner , Credentials Binding,  GitHub Integration
 // maven in jenkins tools 3.9.16
 pipeline {
     agent any
